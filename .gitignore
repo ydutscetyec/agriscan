@@ -1,0 +1,63 @@
+# --- secrets -----------------------------------------------------------------
+# Never commit these. backend/.env holds the database password and the
+# AGRISCAN_SECRET_KEY. Use the .env.example files as templates.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- runtime data ------------------------------------------------------------
+backend/data/
+backend/logs/
+backend/instance/
+*.sqlite
+*.sqlite3
+*.db
+
+# --- model weights -----------------------------------------------------------
+# Trained weights live in Drive (AGRISCAN_runs/<run>/weights), not in git.
+backend/ml/
+*.pt
+*.onnx
+*.engine
+runs/
+
+# --- python ------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# --- node / frontend ---------------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+npm-debug.log*
+yarn-error.log*
+
+# --- media / uploads ---------------------------------------------------------
+# Captured frames, flight video and session ZIPs are generated at runtime.
+uploads/
+captures/
+*.mp4
+*.webm
+*.mov
+*.mkv
+
+# --- editors / os ------------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
