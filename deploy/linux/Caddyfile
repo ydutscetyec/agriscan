@@ -1,0 +1,10 @@
+# For a Linux VPS with its own public IP and a domain pointing at it.
+# Caddy gets and renews the HTTPS certificate by itself.
+#   sudo cp deploy/linux/Caddyfile /etc/caddy/Caddyfile && sudo systemctl reload caddy
+agriscan.example.com {
+	encode zstd gzip
+	request_body {
+		max_size 20MB
+	}
+	reverse_proxy 127.0.0.1:8080
+}

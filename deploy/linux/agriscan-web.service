@@ -1,0 +1,16 @@
+# sudo cp deploy/linux/agriscan-*.service /etc/systemd/system/
+# sudo systemctl daemon-reload && sudo systemctl enable --now agriscan-web agriscan-worker
+[Unit]
+Description=AGRISCAN website and API
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+User=agriscan
+WorkingDirectory=/opt/agriscan/backend
+ExecStart=/opt/agriscan/backend/.venv/bin/python serve.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

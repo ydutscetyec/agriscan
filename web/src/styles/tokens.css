@@ -1,0 +1,94 @@
+/* AGRISCAN design tokens. Palette and typography are fixed by the project's
+   visual design system; nothing here is a free choice. */
+
+:root {
+  --green:        #8BAF3F;   /* primary actions, active nav, field boundaries */
+  --green-dark:   #648B2F;   /* hover, emphasis */
+  --green-light:  #E5EED6;   /* selected nav, information panels */
+  --navy:         #202532;   /* analytical headers */
+  --warm-white:   #FAFAF7;   /* page background */
+  --gray-light:   #F1F2EE;   /* cards, inputs */
+  --text:         #252A2E;
+  --muted:        #6B7280;
+  --border:       #DDE1D8;
+
+  /* Severity. Used with a word and a number, never alone. */
+  /* Marker and shape colours. Non-text, so 3:1 is the bar. */
+  --sev-none:     #648B2F;
+  --sev-mild:     #829F40;
+  --sev-moderate: #C7881E;
+  --sev-severe:   #B23B2E;
+  --sev-unknown:  #8E959B;
+
+  /* Used by the required-field marker since p16 but never defined, so it rendered in
+     the inherited text colour. Same red as Severe text, 5.9:1 on white. */
+  --danger:       #B23B2E;
+
+  /* Severity as a chip. Measured as TEXT, every one of these used to fail on
+     white: Mild was 1.94:1, Moderate 2.94, Not measured 2.64, None 3.98.
+     Hue sits in the chip, the text is dark enough to read, and the chip darkens
+     as severity rises so the scale is legible without colour vision. */
+  --chip-none-bg:     #EDF4E3;  --chip-none-fg:     #41601E;
+  --chip-mild-bg:     #F2F0CE;  --chip-mild-fg:     #5E6015;
+  --chip-moderate-bg: #F8E0BE;  --chip-moderate-fg: #8A5A0E;
+  --chip-severe-bg:   #F2D2CD;  --chip-severe-fg:   #8F2E23;
+  --chip-unknown-bg:  #ECEDEF;  --chip-unknown-fg:  #565C62;
+
+  /* Status label text. #9AA0A6 measured 2.64:1 and #648B2F 3.98:1 as text. */
+  --status-ai:        #6B7280;
+  --status-low:       #70777F;
+  --status-farmer:    #5D812C;
+  --status-verified:  #5D812C;
+  --status-rejected:  #B23B2E;
+
+  /* Added for the richer treatment: a brighter lime for gauge arcs and a deep
+     field-green for hero bands. Navy stays for analytical headers. */
+  --leaf-bright:  #B4D96A;
+  /* White on --green measured 2.53:1, well under AA. Buttons and other
+     white-on-green surfaces use this deeper green instead; --green stays for
+     arcs, rules and tints where it is not carrying text. */
+  --green-btn:    #587A29;
+  --green-btn-hi: #4A6722;
+  --control-border: #8E9489;
+  --paddy-deep:   #141F18;
+  --paddy-mid:    #44633F;
+  --paddy-hero:   #1C2A20;
+
+  --radius:       4px;
+  --radius-lg:    6px;
+  --radius-xl:    12px;
+  --shadow:       0 1px 2px rgba(32, 37, 50, 0.06);
+  --shadow-lift:  0 2px 10px rgba(32, 37, 50, 0.07);
+
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px;
+  --space-4: 16px; --space-5: 24px; --space-6: 32px;
+
+  --sidebar-w: 236px;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  background: var(--warm-white);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { color: var(--navy); margin: 0 0 var(--space-3); line-height: 1.25; }
+h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 17px; font-weight: 600; }
+h3 { font-size: 14px; font-weight: 600; }
+
+a { color: var(--green-dark); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+:focus-visible { outline: 2px solid var(--green-dark); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

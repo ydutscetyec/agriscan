@@ -1,0 +1,12 @@
+# Only on the machine that runs the worker with a trained model (AGRISCAN_DETECTOR_IMPL=yolo).
+# The web server and the tests do not need any of this.
+#
+# YOLO26 weights need a recent Ultralytics release. If loading fails with an unknown
+# module or layer name, upgrade it: pip install -U ultralytics
+#
+# CPU-only torch keeps the download near 200 MB instead of 2 GB. On a machine with an
+# NVIDIA GPU, install torch from pytorch.org instead and skip the index line.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+ultralytics

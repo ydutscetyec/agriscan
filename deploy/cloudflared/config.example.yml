@@ -1,0 +1,14 @@
+# Cloudflare Tunnel for a permanent address. Copy to:
+#   Windows: C:\Users\<you>\.cloudflared\config.yml
+#   Linux:   ~/.cloudflared/config.yml
+# and replace the two placeholders. Setup steps: DEPLOY.md, "Permanent address".
+tunnel: agriscan
+credentials-file: C:\Users\YOU\.cloudflared\TUNNEL-ID.json
+
+ingress:
+  - hostname: agriscan.example.com
+    service: http://localhost:8080
+    originRequest:
+      # A phone on a weak signal uploading a 6 MB photo needs time.
+      connectTimeout: 30s
+  - service: http_status:404

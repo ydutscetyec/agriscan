@@ -1,0 +1,16 @@
+[Unit]
+Description=AGRISCAN analysis worker
+After=network-online.target mariadb.service agriscan-web.service
+
+[Service]
+User=agriscan
+WorkingDirectory=/opt/agriscan/backend
+ExecStart=/opt/agriscan/backend/.venv/bin/python -m worker.run
+# Exit code 2 means "no model in production" or "stub refused in production". That is
+# a configuration state, not a crash, so systemd does not keep restarting it.
+Restart=on-failure
+RestartPreventExitStatus=2
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

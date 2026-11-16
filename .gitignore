@@ -8,15 +8,23 @@
 *.key
 
 # --- runtime data ------------------------------------------------------------
+data/
 backend/data/
 backend/logs/
 backend/instance/
+logs/
 *.sqlite
 *.sqlite3
 *.db
 
+# thumbnails and previews are regenerated from the stored images
+backend/data/images/_thumbs/
+backend/data/images/_preview/
+backend/data/images/_flights/
+
 # --- model weights -----------------------------------------------------------
 # Trained weights live in Drive (AGRISCAN_runs/<run>/weights), not in git.
+ml/models/
 backend/ml/
 *.pt
 *.onnx
