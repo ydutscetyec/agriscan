@@ -17,10 +17,11 @@ Work in progress. This repository is the code; it is not a deployed instance.
 
 ```
 backend/     Flask + SQLAlchemy API, MariaDB
-  app/       routes, models, services
-  worker/    detection worker (polls the job queue)
-  scripts/   seed, migration runner, model registration
-  migrations/
+  app/         routes, models, services
+  worker/      detection worker (polls the job queue)
+  scripts/     seed, admin creation, model registration, backups
+  migrations/  schema migrations and their runner
+  tests/
 web/         React + Vite single-page frontend
 ```
 
@@ -35,7 +36,7 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1          # PowerShell;  source .venv/bin/activate on Linux
 pip install -r requirements.txt
 cp .env.example .env                 # then fill in the real values
-python -m scripts.run_migrations
+python -m migrations.run_migrations
 python -m scripts.seed
 python serve.py --check              # preflight; fix anything it reports
 python serve.py
@@ -47,12 +48,18 @@ cp .env.example .env
 npm run dev
 ```
 
-The detection worker runs separately:
+The detection worker runs separately, and needs the ML dependencies:
 
 ```bash
 cd backend
+pip install -r requirements-ml.txt
 python -m worker.run
 ```
+
+Tests: `python -m pytest` in `backend/`, `npm test` in `web/`.
+`scripts/run_tests_offset_tz.sh` re-runs the backend suite under a non-UTC
+timezone — worth doing, because a UTC-only test run once hid a bug that
+expired every capture session the moment it was created.
 
 ## Configuration
 
