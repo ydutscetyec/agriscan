@@ -54,14 +54,16 @@ dist-ssr/
 npm-debug.log*
 yarn-error.log*
 
-# --- media / uploads ---------------------------------------------------------
-# Captured frames, flight video and session ZIPs are generated at runtime.
+# --- runtime media -----------------------------------------------------------
+# Captured frames, flight video and session ZIPs are generated at runtime and
+# live under backend/data/, ignored above.
+#
+# Do NOT blanket-ignore video extensions here. web/src/assets/intro.{mp4,webm}
+# is a source asset that Splash.jsx imports by name; ignoring it leaves a tree
+# that builds on a developer machine, where the file is merely untracked, and
+# fails on any clean clone with an unresolved import.
 uploads/
 captures/
-*.mp4
-*.webm
-*.mov
-*.mkv
 
 # --- editors / os ------------------------------------------------------------
 .vscode/

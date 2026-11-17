@@ -65,11 +65,25 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # Printed so a failure is diagnosable at a glance. Uses pymysql rather than
+      # a mariadb client binary, which the runner image does not ship.
       - name: Show both clocks
         working-directory: backend
         run: |
-          python -c "import datetime as dt; print('app  :', dt.datetime.now(dt.timezone.utc).replace(tzinfo=None), 'UTC')"
-          mariadb -h 127.0.0.1 -uroot -pagriscan-ci -e "SELECT NOW() AS server_now, @@global.time_zone AS global_tz;"
+          python - <<'PY'
+          import datetime as dt, os, pymysql
+          print("application:", dt.datetime.now(dt.timezone.utc).replace(tzinfo=None), "UTC")
+          conn = pymysql.connect(
+              host=os.environ["AGRISCAN_DB_HOST"],
+              port=int(os.environ["AGRISCAN_DB_PORT"]),
+              user=os.environ["AGRISCAN_DB_USER"],
+              password=os.environ["AGRISCAN_DB_PASSWORD"],
+          )
+          with conn.cursor() as cur:
+              cur.execute("SELECT NOW(), @@global.time_zone, @@system_time_zone")
+              now, global_tz, system_tz = cur.fetchone()
+          print("db server  :", now, f"(global={global_tz}, system={system_tz})")
+          PY
 
       - name: Run tests
         working-directory: backend
