@@ -74,6 +74,9 @@ def connect(cfg, database: str | None = None):
         database=database,
         charset="utf8mb4",
         autocommit=True,
+        # Same reason as app/extensions.py: the schema's DEFAULT CURRENT_TIMESTAMP
+        # columns must be written in UTC, not the database server's local time.
+        init_command="SET time_zone = '+00:00'",
     )
 
 

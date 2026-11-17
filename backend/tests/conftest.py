@@ -37,6 +37,21 @@ def migrated_database():
         host=cfg.DB_HOST, port=cfg.DB_PORT, user=cfg.DB_USER,
         password=cfg.DB_PASSWORD, autocommit=True,
     )
+
+    # Optionally run the *server* on a non-UTC clock for this session. The schema
+    # stores naive UTC, so if any query or column default were to read the server
+    # clock instead of app.utils.clock, this is what exposes it. Set
+    # AGRISCAN_TEST_DB_TZ=+08:00 (scripts/run_tests_offset_tz.sh does) and the whole
+    # suite must still pass. Restored on teardown so a developer's local server is
+    # left as it was found.
+    db_tz = os.environ.get("AGRISCAN_TEST_DB_TZ")
+    previous_tz = None
+    if db_tz:
+        with conn.cursor() as cur:
+            cur.execute("SELECT @@global.time_zone")
+            previous_tz = cur.fetchone()[0]
+            cur.execute("SET GLOBAL time_zone = %s", (db_tz,))
+
     with conn.cursor() as cur:
         cur.execute(f"DROP DATABASE IF EXISTS `{TEST_DB}`")
     conn.close()
@@ -47,6 +62,15 @@ def migrated_database():
     )
     assert result.returncode == 0, f"migrations failed:\n{result.stdout}\n{result.stderr}"
     yield
+
+    if previous_tz is not None:
+        restore = pymysql.connect(
+            host=cfg.DB_HOST, port=cfg.DB_PORT, user=cfg.DB_USER,
+            password=cfg.DB_PASSWORD, autocommit=True,
+        )
+        with restore.cursor() as cur:
+            cur.execute("SET GLOBAL time_zone = %s", (previous_tz,))
+        restore.close()
 
 
 @pytest.fixture()
