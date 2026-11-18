@@ -1,19 +1,27 @@
-"""p43: the Content Security Policy must permit the tile hosts the map actually uses.
+"""p43: the Content Security Policy must permit every tile host the map uses, and
+tile URLs must be declared in exactly one place.
 
-The base map moved from OpenStreetMap's tile servers to Esri World Imagery and
-OpenStreetMap Germany. The CSP in app/site.py still allowed only
-https://*.tile.openstreetmap.org, so the browser blocked every tile from both
-layers. The map rendered blank — controls, markers and field polygons drawn over
-an empty background — with nothing in the interface to say why. The only evidence
-was a console line:
+Two separate faults, found a day apart, with the same shape — the map renders
+blank or full of error tiles and nothing in the interface says why.
 
-    Loading the image 'https://server.arcgisonline.com/...' violates the following
-    Content Security Policy directive: "img-src 'self' data: blob:
-    https://*.tile.openstreetmap.org". The action has been blocked.
+1. The base map moved to Esri World Imagery and OpenStreetMap Germany, but
+   img-src in app/site.py still allowed only https://*.tile.openstreetmap.org.
+   The browser blocked every tile from both layers. The only evidence was a
+   console line per tile:
 
-Two files in two languages had to agree and nothing checked that they did. This
-reads the tile URLs straight out of the frontend and fails if any of them is not
-permitted by the policy the backend serves.
+       Loading the image 'https://server.arcgisonline.com/...' violates the
+       following Content Security Policy directive: "img-src 'self' data: blob:
+       https://*.tile.openstreetmap.org". The action has been blocked.
+
+2. FieldBoundaries.jsx had kept its own hardcoded OpenStreetMap TileLayer while
+   the other map pages moved to BaseTiles. CSP allowed it, so the tiles loaded —
+   and every one of them was OSM's "Access blocked: app is not following the
+   tile usage policy" 403 image, tiled across the map.
+
+The first version of this test only read BaseMap.jsx, so it passed cleanly while
+fault 2 was live. It now scans the whole frontend, and additionally requires that
+tile URLs appear only in BaseMap.jsx, because a page that declares its own is a
+page that will be forgotten the next time the provider changes.
 """
 
 from __future__ import annotations
@@ -26,22 +34,27 @@ import pytest
 
 from app.site import build_csp
 
-BASEMAP_JS = (
-    pathlib.Path(__file__).resolve().parents[2] / "web" / "src" / "components" / "BaseMap.jsx"
-)
+WEB_SRC = pathlib.Path(__file__).resolve().parents[2] / "web" / "src"
+CANONICAL = "BaseMap.jsx"
 
-# url: 'https://host/path/{z}/{y}/{x}'
-URL_IN_LAYERS = re.compile(r"url:\s*['\"](https?://[^'\"]+)['\"]")
+# A Leaflet tile template: a URL carrying the {z}/{x}/{y} placeholders. Precise
+# enough not to match API calls, documentation links or attribution hrefs.
+TILE_URL = re.compile(r"""['"](https?://[^'"]*\{z\}[^'"]*)['"]""")
 
 
-def tile_hosts() -> list[str]:
-    source = BASEMAP_JS.read_text(encoding="utf-8")
-    hosts = []
-    for url in URL_IN_LAYERS.findall(source):
-        host = urllib.parse.urlsplit(url).hostname
-        if host and host not in hosts:
-            hosts.append(host)
-    return hosts
+def tile_url_sites() -> list[tuple[pathlib.Path, str]]:
+    """(file, url) for every tile template literal in the frontend."""
+    found = []
+    for path in sorted(WEB_SRC.rglob("*.js")) + sorted(WEB_SRC.rglob("*.jsx")):
+        for url in TILE_URL.findall(path.read_text(encoding="utf-8")):
+            found.append((path, url))
+    return found
+
+
+def host_of(url: str) -> str:
+    # Leaflet's {s} subdomain placeholder is not valid in a hostname; the CSP
+    # sees the expanded form, so compare against the wildcard-friendly remainder.
+    return urllib.parse.urlsplit(url.replace("{s}.", "")).hostname or ""
 
 
 def img_src_sources(csp: str) -> list[str]:
@@ -61,20 +74,18 @@ def permits(sources: list[str], host: str) -> bool:
         source_host = source.split("://", 1)[1].rstrip("/")
         if source_host == host:
             return True
-        if source_host.startswith("*."):
-            suffix = source_host[1:]  # ".tile.openstreetmap.org"
-            if host.endswith(suffix):
-                return True
+        if source_host.startswith("*.") and host.endswith(source_host[1:]):
+            return True
     return False
 
 
-def test_basemap_source_is_where_we_think_it_is():
-    """Guards the test itself: a moved or renamed file must not silently pass."""
-    assert BASEMAP_JS.is_file(), f"{BASEMAP_JS} not found; update this test"
-    assert tile_hosts(), f"no tile URLs parsed out of {BASEMAP_JS.name}"
+def test_the_frontend_is_where_we_think_it_is():
+    """Guards the test itself: a moved tree must not silently pass."""
+    assert WEB_SRC.is_dir(), f"{WEB_SRC} not found; update this test"
+    assert tile_url_sites(), "no tile URLs found anywhere in the frontend"
 
 
-@pytest.mark.parametrize("host", tile_hosts())
+@pytest.mark.parametrize("host", sorted({host_of(u) for _, u in tile_url_sites()}))
 def test_csp_permits_every_tile_host(host):
     sources = img_src_sources(build_csp())
     assert permits(sources, host), (
@@ -82,6 +93,23 @@ def test_csp_permits_every_tile_host(host):
         f"({' '.join(sources)}). Every tile will be blocked and the map will render "
         f"blank. Add the origin to DEFAULT_TILE_ORIGINS in app/site.py, or set "
         f"AGRISCAN_TILE_ORIGINS."
+    )
+
+
+def test_tile_urls_are_declared_only_in_basemap():
+    """One source of truth. A page with its own TileLayer gets left behind when
+    the provider changes, which is precisely how FieldBoundaries.jsx ended up
+    still pointed at servers that had started refusing us."""
+    strays = sorted(
+        f"{path.relative_to(WEB_SRC)} -> {url}"
+        for path, url in tile_url_sites()
+        if path.name != CANONICAL
+    )
+    assert not strays, (
+        "tile URLs outside components/" + CANONICAL + ":\n  "
+        + "\n  ".join(strays)
+        + "\nUse <BaseTiles layer={baseMap} /> instead, so every map page follows "
+          "the provider defined in one place."
     )
 
 

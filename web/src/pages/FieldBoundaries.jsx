@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { MapContainer, Polygon, TileLayer, Tooltip, useMap } from 'react-leaflet'
+import { MapContainer, Polygon, Tooltip, useMap } from 'react-leaflet'
 import { MapPin, MapPinned, PencilRuler } from 'lucide-react'
 import { api } from '../api/client'
+import { BaseTiles, useBaseMap } from '../components/BaseMap'
 import { EmptyState, FieldShape, PageHeader } from '../components/Layout'
 
 const DEFAULT_CENTER = [6.3711, 124.7461]
@@ -54,6 +55,7 @@ export default function FieldBoundaries() {
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState(null)
   const [error, setError] = useState(null)
+  const [baseMap] = useBaseMap()
 
   useEffect(() => {
     api.fieldsSummary()
@@ -165,10 +167,7 @@ export default function FieldBoundaries() {
 
           <div className="as-card plain" style={{ padding: 0, overflow: 'hidden', height: '72vh', position: 'sticky', top: 16 }}>
             <MapContainer center={DEFAULT_CENTER} zoom={14} scrollWheelZoom>
-              <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              />
+              <BaseTiles layer={baseMap} />
               <MapController fields={drawn} selectedId={selectedId} />
               {drawn.map((f) => {
                 const selected = selectedId === f.id
