@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+import os
 import time
 
 from flask import Flask, Response, request, send_file
@@ -43,24 +44,54 @@ for _type, _ext in (
 ):
     mimetypes.add_type(_type, _ext)
 
-# What the dashboard actually loads. Map tiles are the only third-party origin: fonts are
-# bundled, scripts are same-origin, and the API is same-origin.
-CONTENT_SECURITY_POLICY = "; ".join([
-    "default-src 'self'",
-    "script-src 'self'",
-    # Leaflet and React position elements with inline style attributes.
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://*.tile.openstreetmap.org",
-    "font-src 'self' data:",
-    "connect-src 'self'",
-    "media-src 'self' blob:",
-    "worker-src 'self'",
-    "manifest-src 'self'",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "frame-ancestors 'none'",
-])
+# The origins the map loads tile imagery from. These must stay in step with LAYERS in
+# web/src/components/BaseMap.jsx.
+#
+# Getting this wrong is silent and total: the browser blocks every tile, the map renders
+# blank with its controls and markers still drawn on nothing, no request reaches the
+# network tab as a failure, and the only clue is a Content Security Policy line in the
+# console. That is exactly what happened when the base map moved off OpenStreetMap's
+# servers and this list stayed behind — both layers were blocked, so switching base map
+# looked broken too.
+#
+# tests/test_p43_csp_tiles.py reads BaseMap.jsx and fails if the two ever drift apart.
+DEFAULT_TILE_ORIGINS = (
+    "https://server.arcgisonline.com",   # Esri World Imagery — the satellite layer
+    "https://tile.openstreetmap.de",     # OpenStreetMap Germany — the streets layer
+    "https://*.tile.openstreetmap.org",  # OSM standard, for deployments still on it
+)
+
+
+def tile_origins() -> tuple[str, ...]:
+    """Tile origins allowed by the CSP.
+
+    AGRISCAN_TILE_ORIGINS (space- or comma-separated) adds more, so a deployed server
+    can move to a different tile provider without a code change.
+    """
+    raw = os.environ.get("AGRISCAN_TILE_ORIGINS", "").replace(",", " ").split()
+    extra = tuple(o for o in raw if o not in DEFAULT_TILE_ORIGINS)
+    return DEFAULT_TILE_ORIGINS + extra
+
+
+def build_csp() -> str:
+    """What the dashboard actually loads. Map tiles are the only third-party origin:
+    fonts are bundled, scripts are same-origin, and the API is same-origin."""
+    return "; ".join([
+        "default-src 'self'",
+        "script-src 'self'",
+        # Leaflet and React position elements with inline style attributes.
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob: " + " ".join(tile_origins()),
+        "font-src 'self' data:",
+        "connect-src 'self'",
+        "media-src 'self' blob:",
+        "worker-src 'self'",
+        "manifest-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+    ])
 
 # The drone phone needs the camera, location and wake lock; nothing needs the microphone.
 PERMISSIONS_POLICY = (
@@ -120,13 +151,16 @@ def create_web_app(cfg: Config) -> Flask:
             return Response("Not found.", status=404, mimetype="text/plain")
         return _index()
 
+    # Built here, not at import, so AGRISCAN_TILE_ORIGINS from .env is already loaded.
+    content_security_policy = build_csp()
+
     @web.after_request
     def _headers(response: Response):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("Referrer-Policy", "same-origin")
         response.headers.setdefault("Permissions-Policy", PERMISSIONS_POLICY)
         if response.mimetype == "text/html":
-            response.headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
+            response.headers.setdefault("Content-Security-Policy", content_security_policy)
             response.headers.setdefault("X-Frame-Options", "DENY")
             response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
         if cfg.is_production and request.scheme == "https":
