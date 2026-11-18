@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { MapContainer, Polygon, Tooltip, useMap } from 'react-leaflet'
 import { MapPin, MapPinned, PencilRuler } from 'lucide-react'
 import { api } from '../api/client'
-import { BaseTiles, useBaseMap } from '../components/BaseMap'
+import { BaseTiles, FIT_MAX_ZOOM, useBaseMap } from '../components/BaseMap'
 import { EmptyState, FieldShape, PageHeader } from '../components/Layout'
 
 const DEFAULT_CENTER = [6.3711, 124.7461]
@@ -24,7 +24,7 @@ function MapController({ fields, selectedId }) {
     if (fitted.current) return
     const all = fields.flatMap((f) => toPositions(f.boundary_geojson))
     if (all.length) {
-      map.fitBounds(all, { padding: [30, 30] })
+      map.fitBounds(all, { padding: [30, 30], maxZoom: FIT_MAX_ZOOM })
       fitted.current = true
     }
   }, [fields, map])
@@ -34,7 +34,7 @@ function MapController({ fields, selectedId }) {
     if (!selectedId) return
     const field = fields.find((f) => f.id === selectedId)
     const positions = field ? toPositions(field.boundary_geojson) : []
-    if (positions.length) map.flyToBounds(positions, { padding: [60, 60], duration: 0.6 })
+    if (positions.length) map.flyToBounds(positions, { padding: [60, 60], duration: 0.6, maxZoom: FIT_MAX_ZOOM })
   }, [selectedId, fields, map])
 
   return null

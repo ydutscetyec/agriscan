@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BaseMapChoice, BaseTiles, useBaseMap } from '../components/BaseMap'
+import { BaseMapChoice, BaseTiles, FIT_MAX_ZOOM, useBaseMap } from '../components/BaseMap'
 import {
   MapContainer, Marker, Polygon, Popup, TileLayer, useMap, useMapEvents,
 } from 'react-leaflet'
@@ -32,7 +32,7 @@ function FitToFields({ polygons }) {
   useEffect(() => {
     if (!polygons.length) return
     const all = polygons.flatMap((p) => p.positions)
-    if (all.length) map.fitBounds(all, { padding: [30, 30] })
+    if (all.length) map.fitBounds(all, { padding: [30, 30], maxZoom: FIT_MAX_ZOOM })
   }, [polygons, map])
   return null
 }
