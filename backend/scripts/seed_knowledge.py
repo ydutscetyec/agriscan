@@ -27,9 +27,23 @@ PLACEHOLDER = (
 
 # Only non-chemical, non-dosage guidance is ever placeheld. Nothing here names a
 # product, a rate or an interval, so a placeholder can never leak a chemical claim.
+#
+# The first group is the original Tier 1 demo taxonomy (seeded by scripts.seed).
+# The second group is modelA_v2's real 25-class output (imported via
+# scripts.import_conditions scripts/conditions_modelA_v2.csv before this script
+# runs). Both are harmless to keep: "unknown" and the snake_case codes are still
+# load-bearing for the worker's fallback path, and a code this script can't find
+# is silently skipped rather than erroring.
 CONDITIONS = [
     "healthy", "bacterial_leaf_blight", "rice_blast", "brown_spot",
     "hopperburn", "nitrogen_deficiency", "lodging", "flooding", "unknown",
+    # modelA_v2 (registered 2026-11, YOLO26n-cls, ground track)
+    "Healthy Rice plant", "Bacterial Leaf Blight-Streak", "Brown Spot",
+    "Narrow Brown Spot", "Leaf Blast", "Neck-Panicle Blast", "Sheath Blight",
+    "Sheath Rot", "Stem Rot", "False Smut", "Tungro", "Grassy Stunt Virus",
+    "Ragged Stunt Virus", "Hopper", "Rice Black Bug", "Rice Bug", "Stem Borer",
+    "Thrips", "Leaf Miner-Whorl Maggot", "Nutrient Deficiency", "Abiotic Stress",
+    "Flooding", "Lodging-Physical Damage", "Vertebrate Damage", "Weed Presence",
 ]
 
 SOURCES = [

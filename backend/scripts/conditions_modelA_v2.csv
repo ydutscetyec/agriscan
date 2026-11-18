@@ -1,0 +1,26 @@
+code,common_name,category,scientific_name,plant_part,aerial_allowed
+Healthy Rice plant,Healthy rice plant,healthy,,,false
+Bacterial Leaf Blight-Streak,Bacterial leaf blight / leaf streak,bacterial,Xanthomonas oryzae,leaf,false
+Brown Spot,Brown spot,fungal,Bipolaris oryzae,leaf,false
+Narrow Brown Spot,Narrow brown leaf spot,fungal,Cercospora oryzae,leaf,false
+Leaf Blast,Rice blast (leaf stage),fungal,Pyricularia oryzae,leaf,false
+Neck-Panicle Blast,Rice blast (neck/panicle stage),fungal,Pyricularia oryzae,neck_panicle,false
+Sheath Blight,Sheath blight,fungal,Rhizoctonia solani,sheath,false
+Sheath Rot,Sheath rot,fungal,Sarocladium oryzae,sheath,false
+Stem Rot,Stem rot,fungal,Sclerotium oryzae,stem,false
+False Smut,False smut,fungal,Ustilaginoidea virens,panicle,false
+Tungro,Tungro virus disease,viral,Rice tungro virus complex (RTSV/RTBV),,false
+Grassy Stunt Virus,Rice grassy stunt virus,viral,Rice grassy stunt virus,,false
+Ragged Stunt Virus,Rice ragged stunt virus,viral,Rice ragged stunt virus,,false
+Hopper,Planthopper / leafhopper damage,pest,Nilaparvata lugens / Nephotettix spp.,,false
+Rice Black Bug,Rice black bug damage,pest,Scotinophara coarctata,,false
+Rice Bug,Rice bug damage,pest,Leptocorisa oratorius,panicle,false
+Stem Borer,Stem borer damage,pest,Scirpophaga incertulas,stem,false
+Thrips,Thrips damage,pest,Stenchaetothrips biformis,leaf,false
+Leaf Miner-Whorl Maggot,Leaf miner / whorl maggot damage,pest,Hydrellia philippina,leaf,false
+Nutrient Deficiency,Nutrient deficiency,nutritional,,,false
+Abiotic Stress,Abiotic stress (general),abiotic,,,false
+Flooding,Flooding damage,abiotic,,,false
+Lodging-Physical Damage,Lodging / physical damage,physical,,,false
+Vertebrate Damage,Vertebrate (rodent/bird) damage,physical,,,false
+Weed Presence,Weed presence,weed,,,false
