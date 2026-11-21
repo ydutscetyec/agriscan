@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, ScanSearch, SlidersHorizontal, X } from 'lucide-react'
 import { api } from '../api/client'
 import Filters, { EMPTY_FILTERS, applySeverityFilter, toQuery } from '../components/Filters'
@@ -38,6 +38,7 @@ function presetOf(filters) {
 }
 
 export default function Detections() {
+  const navigate = useNavigate()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
   const [rows, setRows] = useState([])
   const [page, setPage] = useState(0)
@@ -206,9 +207,27 @@ export default function Detections() {
                 {shown.map((d) => {
                   const s = STATUS[d.verification_status]
                   return (
+                    /* The whole row opens the detection. It used to be the id cell
+                       alone, which is a one-character target on a row that looks
+                       clickable, so "I can't click it" was the common reaction. The
+                       id stays a real link for middle-click and open-in-new-tab. */
                     <tr key={d.id} className="as-row"
-                        style={{ borderLeftColor: s ? s.stroke : 'transparent' }}>
-                      <td><Link to={`/detections/${d.id}`}>{d.id}</Link></td>
+                        style={{ borderLeftColor: s ? s.stroke : 'transparent',
+                                 cursor: 'pointer' }}
+                        tabIndex={0}
+                        role="link"
+                        aria-label={`Open detection ${d.id}, ${d.condition_name}`}
+                        onClick={() => navigate(`/detections/${d.id}`)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault()
+                            navigate(`/detections/${d.id}`)
+                          }
+                        }}>
+                      <td>
+                        <Link to={`/detections/${d.id}`}
+                              onClick={(e) => e.stopPropagation()}>{d.id}</Link>
+                      </td>
                       <td style={{ fontWeight: 600 }}>{d.condition_name}</td>
                       <td><StatusBadge status={d.verification_status} /></td>
                       <td style={{ whiteSpace: 'nowrap' }}>
