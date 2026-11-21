@@ -48,8 +48,26 @@ def read_class_names(weights: pathlib.Path) -> list[str] | None:
 
 
 def unmatched_classes(session, class_names: list[str]) -> list[str]:
-    codes = set(session.execute(select(Condition.code)).scalars())
-    return [n for n in class_names if n not in codes]
+    """Model class names with no conditions.code row, as the WORKER would resolve them.
+
+    conditions.code is utf8mb4_general_ci, so every lookup the worker makes --
+    condition_by_code() issues WHERE code = :code -- is case-insensitive. Comparing
+    in Python is not, so an exact-match check reports classes as unmatched that the
+    worker resolves without trouble: the model class "Flooding" finds the "flooding"
+    row seeded by scripts.seed, and nothing is dropped.
+
+    That false negative is not cosmetic. It blocks --production and invites
+    --allow-unmatched, which records the intent "dropping these is fine" for classes
+    that are not in fact dropped. Fold both sides instead, so this gate agrees with
+    the database it is predicting.
+
+    Folding cannot collapse two distinct rows into one: uq_conditions_code is unique
+    on a case-insensitive column, so "flooding" and "Flooding" cannot both exist.
+    .lower() rather than .casefold() because general_ci does simple case folding, not
+    full Unicode folding, and these codes are ASCII.
+    """
+    codes = {c.lower() for c in session.execute(select(Condition.code)).scalars()}
+    return [n for n in class_names if n.lower() not in codes]
 
 
 def retire_production(session, mode: str, keep_id: int) -> list[str]:
