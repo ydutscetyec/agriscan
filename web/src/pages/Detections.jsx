@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, ScanSearch, SlidersHorizontal, X } from 'lucide-react'
 import { api } from '../api/client'
+import { useAuth } from '../state/auth'
 import Filters, { EMPTY_FILTERS, applySeverityFilter, toQuery } from '../components/Filters'
 import { ConfidenceLabel, SeverityTag, STATUS, StatusBadge } from '../components/Detection'
 import { EmptyState, PageHeader } from '../components/Layout'
@@ -39,7 +40,10 @@ function presetOf(filters) {
 
 export default function Detections() {
   const navigate = useNavigate()
+  const { can } = useAuth()
   const [filters, setFilters] = useState(EMPTY_FILTERS)
+  const [acting, setActing] = useState(null)
+  const [actionError, setActionError] = useState(null)
   const [rows, setRows] = useState([])
   const [page, setPage] = useState(0)
   const [total, setTotal] = useState(0)
@@ -72,6 +76,31 @@ export default function Detections() {
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false))
   }, [filters, page])
+
+  /* One click from the list to a detection's countermeasures. The button used to
+     live only on the detection page, three interactions away: open the row, find
+     the "What to do" card, press Generate. Generating still requires a
+     technician-verified detection, which is the same gate DetectionDetail applies
+     -- this is a shortcut to the action, not a way around the rule.
+
+     The list payload carries no "already has a recommendation" flag, so this asks
+     before generating rather than adding a second pending row to a detection that
+     already has one. Either way it ends on the detail page, because that is where
+     the text is reviewed and approved. */
+  async function openCountermeasures(detection) {
+    setActing(detection.id)
+    setActionError(null)
+    try {
+      const existing = await api.recommendationsFor(detection.id)
+      if (!existing?.recommendations?.length) {
+        await api.generateRecommendation(detection.id)
+      }
+      navigate(`/detections/${detection.id}`)
+    } catch (err) {
+      setActionError(`Detection ${detection.id}: ${err.message}`)
+      setActing(null)
+    }
+  }
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const firstShown = total === 0 ? 0 : page * PAGE_SIZE + 1
@@ -149,6 +178,7 @@ export default function Detections() {
       )}
 
       {error && <div className="as-warn">{error}</div>}
+      {actionError && <div className="as-warn">{actionError}</div>}
       {loading && <p className="as-muted">Loading detections…</p>}
 
       {!loading && !error && shown.length === 0 && (
@@ -201,6 +231,7 @@ export default function Detections() {
                       {sort.key === c.key ? (sort.dir === 'asc' ? ' \u2191' : ' \u2193') : ''}
                     </th>
                   ))}
+                  <th aria-label="Countermeasures" />
                 </tr>
               </thead>
               <tbody>
@@ -241,6 +272,22 @@ export default function Detections() {
                       <td><SeverityTag value={d.severity} method={d.severity_method} /></td>
                       <td>{d.source}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>{(d.created_at || '').slice(0, 10)}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>
+                        {can('admin', 'technician', 'researcher') && (
+                          <button
+                            type="button"
+                            className="as-btn secondary"
+                            style={{ padding: '4px 10px', fontSize: 13 }}
+                            disabled={acting === d.id
+                                      || d.verification_status !== 'technician_verified'}
+                            title={d.verification_status === 'technician_verified'
+                              ? 'Open this detection and generate its countermeasures'
+                              : 'A technician must verify this detection first'}
+                            onClick={(e) => { e.stopPropagation(); openCountermeasures(d) }}>
+                            {acting === d.id ? 'Working\u2026' : 'Countermeasures'}
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   )
                 })}
