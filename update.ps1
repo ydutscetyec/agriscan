@@ -80,6 +80,7 @@ if (Test-Path $csv) { & $python -m scripts.import_conditions $csv }
 
 & $python -m scripts.seed_knowledge
 & $python -m scripts.load_knowledge_drafts
+& $python -m scripts.load_knowledge_drafts_2
 Pop-Location
 
 # --- 5. what the system thinks of itself -------------------------------------
