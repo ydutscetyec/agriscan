@@ -74,15 +74,24 @@ def main() -> int:
     source = session.execute(select(KnowledgeSource)).scalars().first()
 
     added = 0
+    # conditions.code is utf8mb4_general_ci, so lookups are case-insensitive: the
+    # model-class code "Flooding" resolves to the existing "flooding" row. Two entries
+    # in CONDITIONS can therefore be the same condition, and without tracking what has
+    # already been handled in this run both pass the "no row yet" check below and the
+    # second insert violates uq_kb_condition.
+    seen_condition_ids: set[int] = set()
     for code in CONDITIONS:
         cond = session.execute(
             select(Condition).where(Condition.code == code)
         ).scalar_one_or_none()
+        if cond is not None and cond.id in seen_condition_ids:
+            continue
         if cond is None:
             continue
         exists = session.execute(
             select(KnowledgeBase).where(KnowledgeBase.condition_id == cond.id)
         ).scalar_one_or_none()
+        seen_condition_ids.add(cond.id)
         if exists is not None:
             continue
         session.add(

@@ -338,6 +338,79 @@ DRAFTS: dict[str, dict] = {
 }
 
 
+# --- the same drafts, attached to modelA_v2's class names -----------------------
+# The taxonomy now holds both the original nine Tier-1 codes and the 25 classes the
+# trained checkpoint outputs (scripts/conditions_modelA_v2.csv). Detections produced
+# by the model carry the 25-class codes, so guidance written only against the old
+# nine would never be retrieved. Each entry below reuses a draft and overrides the
+# fields where the mapping is not exact.
+#
+# Sixteen of the 25 have no draft at all — the sources consulted covered the Tier-1
+# conditions only. Those keep their PLACEHOLDER rows, which is honest: no text beats
+# text borrowed from a different disease.
+MODEL_CLASS_DRAFTS: dict[str, tuple[str, dict]] = {
+    "Healthy Rice plant": ("healthy", {}),
+    "Bacterial Leaf Blight-Streak": ("bacterial_leaf_blight", {}),
+    "Brown Spot": ("brown_spot", {}),
+    "Hopper": ("hopperburn", {}),
+    "Lodging-Physical Damage": ("lodging", {}),
+    "Flooding": ("flooding", {}),
+
+    # One pathogen, two classes, different plant parts and different stakes.
+    "Leaf Blast": ("rice_blast", {
+        "identification_cues":
+            "Small to spindle-shaped spots with a brown border and a grey centre, "
+            "which join up until leaves dry and die. Most susceptible from seedling "
+            "to tillering.\n\n"
+            "Lookalikes: brown spot lesions are circular to oval, not spindle-shaped; "
+            "sheath blight makes large irregular lesions. If the blackening is at a "
+            "node or the base of a panicle rather than on the leaf, it is the neck and "
+            "panicle form, which is the more damaging one.",
+    }),
+    "Neck-Panicle Blast": ("rice_blast", {
+        "identification_cues":
+            "A blackened, rotten node that later breaks, around tillering; or a "
+            "blackened panicle base that later breaks, with unfilled grains, from "
+            "booting to heading. Same pathogen as leaf blast, caught on the upper "
+            "plant, and the stage where yield loss is heaviest.",
+        "when_to_call":
+            "Call your municipal agricultural technician immediately. Blackened nodes "
+            "or panicle bases during booting or heading are the costliest form of this "
+            "disease, and the window to act is short.",
+    }),
+
+    # The draft is specifically about nitrogen; this class is any deficiency.
+    "Nutrient Deficiency": ("nitrogen_deficiency", {
+        "identification_cues":
+            "General yellowing, stunting and fewer tillers, most obvious at the "
+            "vegetative stage, judged against healthy plants of the same variety and "
+            "age.\n\n"
+            "IMPORTANT: this class does not say WHICH nutrient. The drafted guidance "
+            "below is for nitrogen, the most common case. Potassium deficiency browns "
+            "older leaves with yellowing between the veins and predisposes the crop to "
+            "brown spot; zinc and phosphorus deficiency look different again and are "
+            "corrected differently. A soil test, or the minus-one-element technique, is "
+            "what tells them apart.\n\n"
+            "Lookalikes: tungro and grassy stunt also stunt and yellow the crop. Rule "
+            "those out before treating this as a fertiliser problem.",
+        "when_to_call":
+            "Call your municipal agricultural technician before changing the fertiliser "
+            "programme, and ask for a soil test to identify the nutrient. Guessing "
+            "wrong wastes the input; over-correcting with nitrogen is a listed "
+            "predisposing factor for both bacterial leaf blight and blast.",
+    }),
+}
+
+
+def expand_model_class_drafts() -> dict[str, dict]:
+    out = {}
+    for code, (base, overrides) in MODEL_CLASS_DRAFTS.items():
+        entry = dict(DRAFTS[base])
+        entry.update(overrides)
+        out[code] = entry
+    return out
+
+
 def upsert_sources(session) -> dict[str, int]:
     ids = {}
     for key, data in SOURCES.items():
@@ -369,8 +442,15 @@ def main() -> int:
 
     source_ids = upsert_sources(session)
 
-    written = skipped_reviewed = skipped_draft = missing = 0
-    for code, draft in DRAFTS.items():
+    targets = {**DRAFTS, **expand_model_class_drafts()}
+
+    written = skipped_reviewed = skipped_draft = missing = collided = 0
+    # conditions.code is utf8mb4_general_ci, so the lookup is case-insensitive and the
+    # model class "Flooding" resolves to the pre-existing "flooding" row — one condition,
+    # two names. Writing both would violate uq_kb_condition, so the first wins and the
+    # collision is reported rather than hidden.
+    handled: dict[int, str] = {}
+    for code, draft in targets.items():
         cond = session.execute(
             select(Condition).where(Condition.code == code)
         ).scalar_one_or_none()
@@ -378,6 +458,12 @@ def main() -> int:
             print(f"  no such condition, skipped: {code}")
             missing += 1
             continue
+        if cond.id in handled:
+            print(f"  same condition as '{handled[cond.id]}' (case-insensitive code), "
+                  f"skipped: {code}")
+            collided += 1
+            continue
+        handled[cond.id] = code
 
         row = session.execute(
             select(KnowledgeBase).where(KnowledgeBase.condition_id == cond.id)
@@ -404,6 +490,7 @@ def main() -> int:
         )
         if row is None:
             session.add(KnowledgeBase(condition_id=cond.id, **fields))
+            session.flush()   # so a later lookup for this condition sees it
         else:
             for key, value in fields.items():
                 setattr(row, key, value)
@@ -417,6 +504,7 @@ def main() -> int:
     print(f"DRAFT rows written:   {written}")
     print(f"left alone (REVIEWED): {skipped_reviewed}")
     print(f"left alone (DRAFT):    {skipped_draft}")
+    print(f"duplicate condition:   {collided}")
     print(f"condition not found:   {missing}")
     print()
     print("These rows are DRAFT. They are summarised from published sources, not")

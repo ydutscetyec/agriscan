@@ -30,7 +30,19 @@ promote, or (with `--allow-unmatched`) promote while the worker silently drops e
 prediction, because none of the 25 classes would resolve to a condition.
 
 Decision taken: add all 25 as new conditions (not collapsed onto the old 9), so no
-class the model can output is ever dropped. `scripts/conditions_modelA_v2.csv` carries
+class the model can output is ever dropped. Confirmed by the project lead on
+21 November 2026, over the alternative of retraining down to the 9 Tier-1 codes.
+
+One of the 25 is not actually new. `conditions.code` is `utf8mb4_general_ci`, so
+lookups are **case-insensitive**: the class `Flooding` resolves to the pre-existing
+`flooding` row. `import_conditions` therefore adds 24, not 25, and reports one as
+already present — that is correct behaviour, not a failure. The taxonomy ends at 33
+conditions (9 Tier-1 + `anomaly_zone` + 24 new), and `Flooding` detections file under
+`flooding`, which already carries drafted guidance.
+
+The same collision bit both seeding scripts: two entries resolving to one condition
+each passed their "no row yet" check and the second insert violated `uq_kb_condition`.
+Both now track which conditions they have handled within a run. `scripts/conditions_modelA_v2.csv` carries
 them, categorized against the existing `CONDITION_CATEGORIES` enum (`fungal`,
 `bacterial`, `viral`, `pest`, `nutritional`, `abiotic`, `physical`, `weed`, `healthy`).
 
@@ -50,6 +62,15 @@ cd backend
 
 # 1. Add the 25 new conditions (idempotent; skips codes that already exist)
 python -m scripts.import_conditions scripts/conditions_modelA_v2.csv
+
+# 1b. OPTIONAL BUT DO IT: real drafted guidance for the conditions that have it.
+#     Without this, every recommendation the system generates is placeholder text.
+#     Writes content_status=DRAFT for 17 of the 33 conditions, sourced from PhilRice,
+#     Pacific Pests and IRRI and cited per entry. Still not reviewed agronomy: a
+#     technician must check each one and set REVIEWED before a farmer acts on it.
+#     Run it after step 2 as well, so it can overwrite the placeholders that step
+#     creates. Safe to re-run; never touches a REVIEWED row.
+python -m scripts.load_knowledge_drafts
 
 # 2. Placeholder knowledge-base text for every condition that doesn't have a row yet,
 #    including the 25 new ones (seed_knowledge.py's CONDITIONS list was extended to
