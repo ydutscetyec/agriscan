@@ -70,6 +70,9 @@
 .as-btn.secondary:hover { background: var(--gray-light); }
 .as-btn.navy { background: var(--navy); border-color: var(--navy); }
 .as-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+/* An <a> cannot be :disabled, so the download link in FlightVideo carries this
+   while the clip is still loading. Same look as a disabled button. */
+.as-btn.as-disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
 
 .as-input, .as-select {
   font: inherit; font-size: 13px; width: 100%;
