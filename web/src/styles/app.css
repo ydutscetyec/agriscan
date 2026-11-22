@@ -1695,6 +1695,21 @@ input[type="radio"]:disabled { cursor: not-allowed; opacity: 0.5; }
 }
 .as-cap-delete:disabled { opacity: 0.5; cursor: default; }
 
+/* Bulk selection on Captured images. The checkbox is the card's first flex child
+   rather than an overlay, so it never sits on top of the thumbnail or the single
+   delete button. */
+.as-cap-pick { flex: 0 0 auto; align-self: flex-start; display: grid; place-items: center;
+  width: 28px; height: 32px; cursor: pointer; }
+.as-cap-pick input { width: 17px; height: 17px; cursor: pointer; accent-color: var(--navy); }
+.as-cap-pick input:disabled { cursor: default; }
+.as-cap-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-2);
+  margin-top: var(--space-3); padding: var(--space-2) var(--space-3);
+  background: #fff; border: 1px solid var(--border); border-radius: var(--radius-lg);
+}
+.as-cap-bar-count { flex: 1 1 auto; font-size: 13px; color: var(--muted); }
+.as-cap-bar-del:not(:disabled) { background: var(--sev-severe); border-color: var(--sev-severe); }
+
 /* ===================================================== p29 viewfinder */
 .as-vf { margin-top: var(--space-3); border-top: 1px solid var(--border); padding-top: var(--space-3); }
 .as-vf-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
