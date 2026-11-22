@@ -773,6 +773,29 @@ export default function CameraStation() {
                       ? `Uploading… ${Math.round(videoProgress * 100)}%`
                       : 'Upload flight video'}
                   </button>
+                  {/* Deliberately NOT disabled while the upload runs. A failing or
+                      stalled upload is exactly when you want the clip off the phone,
+                      and the blob is already in memory so saving costs nothing.
+                      Saving does not drop the pending copy: the server still needs
+                      it, so the upload stays queued either way. */}
+                  <button type="button" className="as-btn secondary"
+                          onClick={() => {
+                            const blob = pendingVideo.blob
+                            const ext = blob.type.includes('mp4') ? 'mp4' : 'webm'
+                            const url = URL.createObjectURL(blob)
+                            const a = document.createElement('a')
+                            a.href = url
+                            a.download = `agriscan-flight-${pendingVideo.sessionId}.${ext}`
+                            document.body.appendChild(a)
+                            a.click()
+                            a.remove()
+                            // Revoking straight away cancels the download on some
+                            // browsers; a minute is long past the hand-off.
+                            setTimeout(() => URL.revokeObjectURL(url), 60000)
+                            setMessage('Saved to this phone. It is still queued to upload.')
+                          }}>
+                    Save to phone
+                  </button>
                   <button type="button" className="as-btn secondary" disabled={sendingVideo}
                           onClick={async () => {
                             if (!window.confirm('Delete this flight video from the phone?')) return
