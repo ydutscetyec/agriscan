@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Film, ImageDown, X } from 'lucide-react'
+import { Download, Film, ImageDown, X } from 'lucide-react'
 import { api, flightVideoUrl } from '../api/client'
 
 /* The flight video for one session, with a way to pull any frame out of it.
@@ -14,6 +14,7 @@ export default function FlightVideo({ session, onSaved }) {
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState(null)
   const [src, setSrc] = useState(null)
+  const [ext, setExt] = useState('webm')
   const videoRef = useRef(null)
 
   async function show() {
@@ -28,7 +29,11 @@ export default function FlightVideo({ session, onSaved }) {
         headers: { Authorization: `Bearer ${sessionStorage.getItem('agriscan_token')}` },
       })
       if (!response.ok) throw new Error(`Could not load the video (${response.status})`)
-      setSrc(URL.createObjectURL(await response.blob()))
+      const blob = await response.blob()
+      // CameraStation records WebM where it can and falls back to MP4, so name the
+      // download after what actually came back rather than assuming either one.
+      setExt(blob.type.includes('mp4') ? 'mp4' : 'webm')
+      setSrc(URL.createObjectURL(blob))
     } catch (err) {
       setNote({ bad: true, text: err.message })
     }
@@ -100,6 +105,17 @@ export default function FlightVideo({ session, onSaved }) {
           <ImageDown size={15} strokeWidth={1.8} />
           {busy ? 'Saving…' : 'Save this frame'}
         </button>
+        {/* The blob is already in memory for the player, so the download costs nothing
+            extra -- no second request, and it works offline once the clip has loaded.
+            A plain href to the API would 401: that endpoint needs the auth header. */}
+        <a className={`as-btn as-btn-sm secondary${src ? '' : ' as-disabled'}`}
+           href={src || undefined}
+           download={`agriscan-flight-${session.id}.${ext}`}
+           aria-disabled={!src}
+           onClick={(e) => { if (!src) e.preventDefault() }}>
+          <Download size={15} strokeWidth={1.8} />
+          Download video
+        </a>
         {session.track_points
           ? <span className="as-muted" style={{ fontSize: 12.5 }}>
               {session.track_points} track points
