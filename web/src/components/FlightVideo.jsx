@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Download, Film, ImageDown, X } from 'lucide-react'
+import { Download, Film, ImageDown, MapPin, X } from 'lucide-react'
 import { api, flightVideoUrl } from '../api/client'
 
 /* The flight video for one session, with a way to pull any frame out of it.
@@ -15,6 +15,7 @@ export default function FlightVideo({ session, onSaved }) {
   const [note, setNote] = useState(null)
   const [src, setSrc] = useState(null)
   const [ext, setExt] = useState('webm')
+  const [interval, setInterval_] = useState(1)
   const videoRef = useRef(null)
 
   async function show() {
@@ -79,6 +80,39 @@ export default function FlightVideo({ session, onSaved }) {
     )
   }
 
+  /* Queued, not done here: a five-minute clip is a full decode pass and hundreds of
+     writes. The worker does it and each frame it writes queues its own analysis. */
+  async function extractFrames() {
+    if (busy) return
+    const seconds = Number(interval)
+    const estimate = session.video_duration_s
+      ? Math.floor(session.video_duration_s / seconds)
+      : null
+    const ok = window.confirm(
+      `Pull a frame every ${seconds}s from this flight?\n\n`
+      + (estimate ? `That is about ${estimate} frames, each analysed separately.\n\n` : '')
+      + (session.track_points
+        ? 'Positions are interpolated from the flight track and marked as such.'
+        : 'This session has NO track, so the frames will have no position and will '
+          + 'not appear on the map.'),
+    )
+    if (!ok) return
+    setBusy(true)
+    setNote(null)
+    try {
+      const r = await api.extractFrames(session.id, seconds)
+      setNote({
+        text: `Queued as job ${r.job_id}: about ${r.estimated_frames ?? '?'} frames `
+          + `every ${r.interval_s}s. They appear in Captured images as the worker `
+          + 'works through them.',
+      })
+    } catch (err) {
+      setNote({ bad: true, text: err.message })
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="as-flightvid">
       <div className="as-flightvid-head">
@@ -116,6 +150,23 @@ export default function FlightVideo({ session, onSaved }) {
           <Download size={15} strokeWidth={1.8} />
           Download video
         </a>
+        <span className="as-flightvid-every">
+          <label htmlFor="as-frame-every">Frame every</label>
+          <select id="as-frame-every" value={interval} disabled={busy}
+                  onChange={(e) => setInterval_(e.target.value)}>
+            <option value="0.3">0.3s</option>
+            <option value="0.5">0.5s</option>
+            <option value="1">1s (one per GPS fix)</option>
+            <option value="2">2s</option>
+            <option value="5">5s</option>
+            <option value="10">10s</option>
+          </select>
+          <button type="button" className="as-btn as-btn-sm secondary" disabled={busy}
+                  onClick={extractFrames}>
+            <MapPin size={15} strokeWidth={1.8} />
+            Extract to map
+          </button>
+        </span>
         {session.track_points
           ? <span className="as-muted" style={{ fontSize: 12.5 }}>
               {session.track_points} track points

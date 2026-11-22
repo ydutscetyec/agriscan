@@ -224,6 +224,10 @@ export const api = {
   uploadFlightTrack: (id, points) =>
     request(`/capture/sessions/${id}/track`, { method: 'POST', body: { points } }),
   flightTrack: (id) => request(`/capture/sessions/${id}/track`),
+  extractFrames: (id, intervalS) =>
+    request(`/capture/sessions/${id}/frames`, {
+      method: 'POST', body: { interval_s: intervalS },
+    }),
   saveVideoFrame: (sessionId, offsetS, blob) => {
     const form = new FormData()
     form.append('frame', blob, 'frame.jpg')

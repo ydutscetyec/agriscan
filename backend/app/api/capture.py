@@ -31,7 +31,7 @@ from app.extensions import SessionLocal
 from app.models import (
     CaptureDevice, CaptureSession, Detection, Field, Image, Mission,
 )
-from app.services import audit, storage
+from app.services import audit, storage, video_frames
 from app.utils.errors import ApiError
 
 bp = Blueprint("capture", __name__, url_prefix="/capture")
@@ -619,6 +619,62 @@ def get_video(session_id: int):
     # conditional=True gives Range support, which is what lets the player scrub without
     # pulling the whole clip first.
     return send_file(path, mimetype=row.video_mime or "video/mp4", conditional=True)
+
+
+@bp.post("/sessions/<int:session_id>/frames")
+@requires_role("admin", "technician")
+def extract_frames(session_id: int):
+    """Queue a job that pulls stills out of this session's video.
+
+    Queued rather than done here: a five-minute clip is a full decode pass and
+    hundreds of writes, which is not something to hold a request open for. The
+    worker picks it up and each frame it writes queues its own inference job.
+
+    interval_s defaults to 1.0 because the track is 1 Hz, so one frame per real fix
+    is as much position resolution as exists. Smaller is allowed -- denser visual
+    coverage can be worth having on its own -- but the frames in between sit on a
+    straight line drawn between two fixes, and the response says how many of those
+    there would be so the caller is not guessing.
+    """
+    db = SessionLocal()
+    row = _owned_session(db, session_id)
+    if not row.video_path:
+        raise ApiError("This session has no video to take frames from.", 400)
+
+    body = request.get_json(silent=True) or {}
+    try:
+        interval = float(body.get("interval_s", 1.0))
+    except (TypeError, ValueError):
+        raise ApiError("'interval_s' must be a number.", 400) from None
+    if not 0.05 <= interval <= 60:
+        raise ApiError("'interval_s' must be between 0.05 and 60 seconds.", 400)
+
+    duration = float(row.video_duration_s or 0)
+    estimate = int(duration / interval) if duration > 0 and interval > 0 else None
+    if estimate is not None and estimate > video_frames.MAX_FRAMES:
+        raise ApiError(
+            f"That interval would ask for about {estimate} frames, over the "
+            f"{video_frames.MAX_FRAMES} limit. Use a larger interval.", 400)
+
+    db.execute(
+        text("INSERT INTO jobs (type, status, priority, payload) "
+             "VALUES ('video_frames', 'QUEUED', 0, :payload)"),
+        {"payload": json.dumps({
+            "capture_session_id": session_id,
+            "interval_s": interval,
+            "requested_by": g.current_user.id,
+        })},
+    )
+    db.commit()
+    job_id = db.execute(text("SELECT LAST_INSERT_ID()")).scalar_one()
+    audit.record(g.current_user.id, "extract_frames", "capture_session", session_id,
+                 {"interval_s": interval, "estimated_frames": estimate})
+    return jsonify({
+        "job_id": int(job_id),
+        "interval_s": interval,
+        "estimated_frames": estimate,
+        "has_track": bool(row.track_path),
+    }), 202
 
 
 @bp.post("/sessions/<int:session_id>/track")
