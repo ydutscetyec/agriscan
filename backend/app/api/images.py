@@ -12,6 +12,7 @@ import json
 from flask import Blueprint, current_app, g, jsonify, request
 from sqlalchemy import bindparam, func, select, text
 
+from app.services.video_frames import interpolate_track as _interpolate
 from app.utils.clock import utc_now
 from app.auth.decorators import requires_auth, requires_role
 from app.extensions import SessionLocal
@@ -268,30 +269,6 @@ def upload_image():
         }
     ), 202
 
-
-def _interpolate(points: list[dict], t: float) -> tuple[float | None, float | None, float | None]:
-    """Position at time t from a 1 Hz track, by linear interpolation between the two
-    surrounding fixes. Returns (lat, lon, accuracy). Outside the track, the nearest
-    endpoint, because a frame a second past the last fix is still near it."""
-    if not points:
-        return None, None, None
-    if t <= points[0]["t"]:
-        p = points[0]
-        return p["lat"], p["lon"], p.get("acc")
-    if t >= points[-1]["t"]:
-        p = points[-1]
-        return p["lat"], p["lon"], p.get("acc")
-    for before, after in zip(points, points[1:]):
-        if before["t"] <= t <= after["t"]:
-            span = after["t"] - before["t"]
-            share = 0.0 if span <= 0 else (t - before["t"]) / span
-            lat = before["lat"] + (after["lat"] - before["lat"]) * share
-            lon = before["lon"] + (after["lon"] - before["lon"]) * share
-            # The worse of the two fixes, plus the distance the drone covered between
-            # them: an interpolated point cannot be better than what it sits between.
-            acc = max(before.get("acc") or 0, after.get("acc") or 0)
-            return lat, lon, acc
-    return None, None, None
 
 
 @images_bp.post("/from-video")

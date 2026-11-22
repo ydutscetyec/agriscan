@@ -35,6 +35,7 @@ from app.inference import (  # noqa: E402
 from app.models import Condition, Detection, Image, ModelVersion  # noqa: E402
 from app.services import processing_version as pv_service
 from app.services import quality  # noqa: E402
+from app.services import video_frames  # noqa: E402
 from app.services.storage import resolve_stored  # noqa: E402
 
 logging.basicConfig(
@@ -191,7 +192,7 @@ def claim_job(session, worker_id: str) -> dict | None:
     session.commit()
     row = session.execute(
         text(
-            "SELECT id, payload, attempts FROM jobs "
+            "SELECT id, payload, attempts, type FROM jobs "
             "WHERE claimed_by=:w AND status='RUNNING' ORDER BY id ASC LIMIT 1"
         ),
         {"w": worker_id},
@@ -201,7 +202,8 @@ def claim_job(session, worker_id: str) -> dict | None:
     payload = row[1]
     if isinstance(payload, (str, bytes)):
         payload = json.loads(payload)
-    return {"id": row[0], "payload": payload or {}, "attempts": row[2]}
+    return {"id": row[0], "payload": payload or {}, "attempts": row[2],
+            "type": row[3] or "inference"}
 
 
 def finish_job(
@@ -329,10 +331,66 @@ def _image_dimensions(path: str) -> tuple[int, int]:
         return 0, 0
 
 
+def run_video_frames(session, job, cfg: Config) -> bool:
+    """Pull stills out of a flight video and queue each one for analysis.
+
+    Runs here rather than in the request that asks for it: a 300-second clip is a
+    full decode pass and hundreds of writes, which is not something to hold a
+    browser open for. Each frame it writes enqueues its own inference job, so the
+    queue drains naturally behind this one.
+    """
+    payload = job["payload"]
+    capture_session_id = payload.get("capture_session_id")
+    interval = float(payload.get("interval_s") or 1.0)
+    if capture_session_id is None:
+        finish_job(session, job["id"], "FAILED", "no capture_session_id in the payload")
+        return True
+
+    log.info("Job %s: frames from capture session %s every %.2fs",
+             job["id"], capture_session_id, interval)
+    try:
+        counts = video_frames.extract(
+            session, cfg, int(capture_session_id), interval,
+            requested_by=payload.get("requested_by"),
+        )
+    except ImportError:
+        # Same shape as the detector's missing-dependency case: the job is the
+        # install's fault, not the data's, and the message should say so.
+        session.rollback()
+        finish_job(session, job["id"], "FAILED",
+                   "MODEL_NOT_AVAILABLE: opencv is not installed in this "
+                   "interpreter. Install requirements-ml.txt into the same Python "
+                   "that runs the worker.")
+        return True
+    except Exception as exc:  # noqa: BLE001 - the message goes in jobs.error
+        session.rollback()
+        finish_job(session, job["id"], "FAILED", str(exc)[:2000])
+        return True
+
+    finish_job(session, job["id"], "COMPLETED", result=json.dumps(counts)[:60000])
+    return True
+
+
 def run_once(session, cfg: Config, worker_id: str) -> bool:
     job = claim_job(session, worker_id)
     if job is None:
         return False
+
+    # Dispatch on jobs.type. Until this existed the worker claimed every queued row
+    # and read payload.image_id off it regardless, so any other kind of job was
+    # silently mangled into a broken inference job. An unknown type now fails with a
+    # message naming it rather than being misread, which matters because the claim
+    # above takes whatever is at the front of the queue -- a worker running older
+    # code will still pick up a job type it does not know, and should say so.
+    kind = job.get("type") or "inference"
+    if kind == "video_frames":
+        return run_video_frames(session, job, cfg)
+    if kind != "inference":
+        finish_job(session, job["id"], "FAILED",
+                   f"unknown job type '{kind}'; this worker handles "
+                   "'inference' and 'video_frames'")
+        return True
+
     image_id = job["payload"].get("image_id")
     log.info("Job %s: image %s", job["id"], image_id)
     try:
