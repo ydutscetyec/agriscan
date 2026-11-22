@@ -134,11 +134,22 @@ export default function Captures() {
   const [busy, setBusy] = useState(null)
   const [notice, setNotice] = useState(null)
   const [viewing, setViewing] = useState(null)
+  const [selected, setSelected] = useState(() => new Set())
+  const [bulk, setBulk] = useState(null)
 
   const [total, setTotal] = useState(0)
 
   const load = () => api.captures(100, sessionId)
-    .then((r) => { setRows(r.captures); setTotal(r.total ?? r.captures.length) })
+    .then((r) => {
+      setRows(r.captures)
+      setTotal(r.total ?? r.captures.length)
+      // Drop ids that are no longer listed, so the count can never claim more than
+      // is on screen after a delete, a filter change or someone else's edit.
+      setSelected((prev) => {
+        const live = new Set(r.captures.map((c) => c.image_id))
+        return new Set([...prev].filter((id) => live.has(id)))
+      })
+    })
     .catch((e) => setError(e.message))
 
   useEffect(() => { load() }, [sessionId])
@@ -165,6 +176,51 @@ export default function Captures() {
     } finally {
       setBusy(null)
     }
+  }
+
+  function toggle(imageId) {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(imageId)) next.delete(imageId)
+      else next.add(imageId)
+      return next
+    })
+  }
+
+  /* Deleted one at a time: there is no bulk endpoint, and inventing a client-side
+     "all or nothing" over separate requests would be a lie -- the early ones are
+     already gone. Sequential rather than parallel so a slip of the mouse on 200
+     photos does not arrive as 200 simultaneous deletes, and so the count below is
+     a truthful running total. Failures are collected and named rather than
+     stopping the run, because a photo that is already gone should not block the
+     rest. */
+  async function removeSelected() {
+    const ids = [...selected]
+    if (!ids.length || bulk) return
+    const ok = window.confirm(
+      `Delete ${ids.length} photo${ids.length === 1 ? '' : 's'}?\n\n`
+      + 'The files and anything the model found on them are removed for good. '
+      + 'A record that you deleted them is kept.',
+    )
+    if (!ok) return
+    setError(null)
+    setNotice(null)
+    const failed = []
+    let done = 0
+    for (const id of ids) {
+      setBulk({ done, total: ids.length })
+      try {
+        await api.deleteCapture(id)
+      } catch (e) {
+        failed.push(`#${id} (${e.message})`)
+      }
+      done += 1
+    }
+    setBulk(null)
+    const deleted = ids.length - failed.length
+    setNotice(`Deleted ${deleted} photo${deleted === 1 ? '' : 's'}.`)
+    if (failed.length) setError(`Could not delete ${failed.length}: ${failed.join(', ')}`)
+    await load()
   }
 
   const waiting = (rows || []).filter((r) => ['QUEUED', 'RETRYING'].includes(r.job_status)).length
@@ -240,6 +296,33 @@ export default function Captures() {
         </div>
       )}
 
+      {user?.role === 'admin' && rows && rows.length > 0 && (
+        <div className="as-cap-bar">
+          <span className="as-cap-bar-count">
+            {selected.size
+              ? `${selected.size} selected`
+              : 'Tick photos to delete several at once'}
+          </span>
+          <button type="button" className="as-btn secondary as-btn-sm" disabled={!!bulk}
+                  onClick={() => setSelected(new Set(rows.map((r) => r.image_id)))}>
+            Select all {rows.length} shown
+          </button>
+          <button type="button" className="as-btn secondary as-btn-sm"
+                  disabled={!selected.size || !!bulk}
+                  onClick={() => setSelected(new Set())}>
+            Clear
+          </button>
+          <button type="button" className="as-btn as-btn-sm as-cap-bar-del"
+                  disabled={!selected.size || !!bulk}
+                  onClick={removeSelected}>
+            <Trash2 size={15} strokeWidth={1.8} />
+            {bulk
+              ? `Deleting ${bulk.done + 1} of ${bulk.total}\u2026`
+              : `Delete selected${selected.size ? ` (${selected.size})` : ''}`}
+          </button>
+        </div>
+      )}
+
       {viewing && <Lightbox capture={viewing} onClose={() => setViewing(null)} />}
 
       {rows && rows.length > 0 && (
@@ -262,6 +345,14 @@ export default function Captures() {
             <div className="as-cap-grid">
           {group.items.map((capture) => (
             <article className="as-cap" key={capture.image_id}>
+              {user?.role === 'admin' && (
+                <label className="as-cap-pick" title={`Select photo ${capture.image_id}`}>
+                  <input type="checkbox" checked={selected.has(capture.image_id)}
+                         disabled={!!bulk}
+                         onChange={() => toggle(capture.image_id)}
+                         aria-label={`Select photo ${capture.image_id} for deletion`} />
+                </label>
+              )}
               <button type="button" className="as-cap-open" onClick={() => setViewing(capture)}
                       title="View the full picture"
                       aria-label={`View photo ${capture.image_id} full size`}>
@@ -293,7 +384,7 @@ export default function Captures() {
                   type="button"
                   className="as-cap-delete"
                   onClick={() => remove(capture)}
-                  disabled={busy === capture.image_id}
+                  disabled={busy === capture.image_id || !!bulk}
                   aria-label={`Delete photo ${capture.image_id}`}
                   title="Delete this photo"
                 >
